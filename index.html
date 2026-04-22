@@ -1,0 +1,950 @@
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║        TRADE BOT — Telegram Mini App Edition             ║
+  ║                                                          ║
+  ║  ДЕПЛОЙ:                                                 ║
+  ║  1. Загрузите файл на хостинг (GitHub Pages / Netlify)   ║
+  ║  2. Создайте бота через @BotFather в Telegram            ║
+  ║  3. /newapp → укажите URL вашего хостинга                ║
+  ║  4. Готово — откройте Mini App через бота                ║
+  ║                                                          ║
+  ║  Подробная инструкция — см. файл ИНСТРУКЦИЯ.md           ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Trade Bot • Binary Signals</title>
+<!-- Telegram Mini App SDK — обязательно до всех остальных скриптов -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+/* ─── TELEGRAM MINI APP INIT ─── */
+// Инициализация вызывается сразу, ДО загрузки DOM
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+if (tg) {
+  tg.ready();           // сообщаем Telegram что приложение готово
+  tg.expand();          // разворачиваем на весь экран
+  tg.disableVerticalSwipes(); // отключаем закрытие свайпом вниз
+}
+
+tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          dark: { 950: '#05070f', 900: '#0a0e1a', 850: '#0d1220', 800: '#111827', 750: '#141d2e', 700: '#1a2437' },
+          neon: { green: '#00e676', red: '#ff1744', blue: '#00b0ff', gold: '#ffd740' }
+        },
+        fontFamily: { mono: ['SF Mono', 'Consolas', 'monospace'] },
+        animation: {
+          'pulse-slow': 'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite',
+          'spin-slow': 'spin 3s linear infinite',
+          'fade-scale': 'fadeScale 0.5s ease-out forwards',
+          'slide-up': 'slideUp 0.4s ease-out forwards',
+          'glow-green': 'glowGreen 2s ease-in-out infinite',
+          'glow-red': 'glowRed 2s ease-in-out infinite',
+        },
+        keyframes: {
+          fadeScale: { '0%': { opacity: 0, transform: 'scale(0.92)' }, '100%': { opacity: 1, transform: 'scale(1)' } },
+          slideUp: { '0%': { opacity: 0, transform: 'translateY(16px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+          glowGreen: { '0%,100%': { boxShadow: '0 0 20px rgba(0,230,118,0.2)' }, '50%': { boxShadow: '0 0 40px rgba(0,230,118,0.45)' } },
+          glowRed: { '0%,100%': { boxShadow: '0 0 20px rgba(255,23,68,0.2)' }, '50%': { boxShadow: '0 0 40px rgba(255,23,68,0.45)' } },
+        }
+      }
+    }
+  }
+</script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  body {
+    background: #05070f;
+    min-height: 100vh;
+    overscroll-behavior: none;
+    /* Safe area только снизу (нижняя панель iPhone) */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .glass-strong {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Animated gradient background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(0,176,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,176,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Circular progress */
+  .circle-progress { transform: rotate(-90deg); transform-origin: center; }
+  .circle-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 6; }
+  .circle-fill { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.5s ease; }
+
+  /* Custom select */
+  .custom-select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #e2e8f0;
+    border-radius: 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+  }
+  .custom-select:focus { outline: none; border-color: rgba(0,176,255,0.5); box-shadow: 0 0 0 3px rgba(0,176,255,0.1); }
+  .custom-select option { background: #111827; color: #e2e8f0; }
+
+  /* Expiry buttons */
+  .exp-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .exp-btn:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+  .exp-btn.active {
+    background: rgba(0,176,255,0.15);
+    border-color: rgba(0,176,255,0.5);
+    color: #00b0ff;
+    box-shadow: 0 0 12px rgba(0,176,255,0.2);
+  }
+
+  /* Signal button */
+  .btn-signal {
+    background: linear-gradient(135deg, #0078ff 0%, #00b0ff 100%);
+    border: none;
+    border-radius: 16px;
+    color: white;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 24px rgba(0,176,255,0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-signal::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  }
+  .btn-signal:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,176,255,0.45); }
+  .btn-signal:active { transform: scale(0.97); }
+  .btn-signal:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* CALL / PUT cards */
+  .signal-call {
+    border: 1px solid rgba(0,230,118,0.25);
+    background: linear-gradient(145deg, rgba(0,230,118,0.07) 0%, rgba(0,230,118,0.02) 100%);
+  }
+  .signal-put {
+    border: 1px solid rgba(255,23,68,0.25);
+    background: linear-gradient(145deg, rgba(255,23,68,0.07) 0%, rgba(255,23,68,0.02) 100%);
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s linear;
+  }
+
+  /* Indicator pill */
+  .ind-pill {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+
+  /* History item */
+  .hist-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    transition: background 0.2s;
+  }
+  .hist-item:hover { background: rgba(255,255,255,0.05); }
+
+  /* Ripple animation on button click */
+  @keyframes ripple {
+    0% { transform: scale(0); opacity: 0.6; }
+    100% { transform: scale(4); opacity: 0; }
+  }
+  .ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    width: 60px; height: 60px;
+    background: rgba(255,255,255,0.3);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+  }
+
+  /* Countdown urgent */
+  .urgent .circle-fill { stroke: #ff1744 !important; }
+  .urgent .timer-text { color: #ff1744 !important; }
+
+  /* Sound toggle */
+  .sound-toggle {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sound-toggle.on { border-color: rgba(0,176,255,0.4); color: #00b0ff; background: rgba(0,176,255,0.08); }
+
+  /* Loading dots */
+  @keyframes bounce {
+    0%,80%,100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+  .dot { border-radius: 50%; background: white; animation: bounce 1.4s ease-in-out infinite; }
+  .dot:nth-child(2) { animation-delay: 0.16s; }
+  .dot:nth-child(3) { animation-delay: 0.32s; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  /* Share button */
+  .btn-share {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-share:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+  .btn-share:active { transform: scale(0.97); }
+
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+</style>
+</head>
+<body class="bg-grid font-sans">
+
+<!-- Ambient blobs -->
+<div style="position:fixed;top:-120px;left:-80px;width:500px;height:500px;background:radial-gradient(circle,rgba(0,120,255,0.06),transparent 70%);pointer-events:none;z-index:0;"></div>
+<div style="position:fixed;bottom:-100px;right:-60px;width:400px;height:400px;background:radial-gradient(circle,rgba(0,230,118,0.04),transparent 70%);pointer-events:none;z-index:0;"></div>
+
+<div style="position:relative;z-index:1;" class="max-w-lg mx-auto px-4 pb-12 pt-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div style="width:38px;height:38px;background:linear-gradient(135deg,#0078ff,#00b0ff);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M3.5 18.5L9.5 12.5L13.5 16.5L21 7M21 7H15M21 7V13"/></svg>
+      </div>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:#e2e8f0;letter-spacing:-0.3px;">Trade Bot</div>
+        <div style="font-size:11px;color:#475569;letter-spacing:0.5px;">TRADING SIGNALS PRO</div>
+        <!-- Имя пользователя Telegram — скрыто по умолчанию, показывается если запущено в TG -->
+        <div id="tgGreeting" style="display:none;font-size:11px;color:#00b0ff;font-weight:600;margin-top:1px;"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- Live indicator -->
+      <div class="flex items-center gap-2 glass" style="border-radius:20px;padding:6px 12px;">
+        <div style="width:7px;height:7px;background:#00e676;border-radius:50%;box-shadow:0 0 6px #00e676;" class="animate-pulse"></div>
+        <span style="font-size:11px;color:#00e676;font-weight:600;letter-spacing:0.8px;">LIVE</span>
+      </div>
+      <!-- Sound toggle -->
+      <button class="sound-toggle on" id="soundToggle" onclick="toggleSound()" style="padding:8px 10px;font-size:11px;font-weight:600;letter-spacing:0.3px;" title="Звуковые уведомления">
+        <span id="soundIcon">🔔</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Clock -->
+  <div class="glass text-center mb-5" style="border-radius:14px;padding:12px;">
+    <div id="clock" style="font-size:26px;font-weight:700;color:#e2e8f0;font-family:monospace;letter-spacing:2px;">00:00:00</div>
+    <div id="dateDisplay" style="font-size:12px;color:#475569;margin-top:2px;"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="glass-strong mb-5" style="border-radius:18px;padding:20px;">
+    <div class="mb-5">
+      <label style="display:block;font-size:12px;font-weight:600;color:#475569;letter-spacing:0.8px;margin-bottom:10px;">ВАЛЮТНАЯ ПАРА</label>
+      <select id="pairSelect" class="custom-select w-full" style="padding:13px 14px;font-size:15px;font-weight:600;">
+        <option>AUD/CHF</option><option>CAD/JPY</option><option>EUR/CHF</option>
+        <option value="EUR/USD" selected>EUR/USD</option><option>AUD/JPY</option>
+        <option>EUR/GBP</option><option>AUD/USD</option><option>USD/CAD</option>
+        <option>AUD/CAD</option><option>GBP/USD</option><option>USD/CHF</option>
+        <option>EUR/AUD</option><option>EUR/CAD</option><option>USD/JPY</option>
+        <option>GBP/CAD</option><option>CAD/CHF</option><option>GBP/AUD</option>
+        <option>GBP/JPY</option><option>EUR/JPY</option><option>GBP/CHF</option>
+        <option>CHF/JPY</option>
+      </select>
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#475569;letter-spacing:0.8px;margin-bottom:10px;">ВРЕМЯ ЭКСПИРАЦИИ</label>
+      <div class="grid grid-cols-4 gap-2" id="expButtons">
+        <button class="exp-btn py-3 text-sm" onclick="setExp(this,3)">3 мин</button>
+        <button class="exp-btn py-3 text-sm active" onclick="setExp(this,5)">5 мин</button>
+        <button class="exp-btn py-3 text-sm" onclick="setExp(this,7)">7 мин</button>
+        <button class="exp-btn py-3 text-sm" onclick="setExp(this,10)">10 мин</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generate button -->
+  <button class="btn-signal w-full mb-6" id="genBtn" onclick="generateSignal(event)" style="padding:18px;font-size:17px;">
+    <span id="btnText">⚡ Получить сигнал</span>
+    <div id="btnLoader" style="display:none;justify-content:center;gap:6px;align-items:center;">
+      <div class="dot" style="width:8px;height:8px;"></div>
+      <div class="dot" style="width:8px;height:8px;"></div>
+      <div class="dot" style="width:8px;height:8px;"></div>
+    </div>
+  </button>
+
+  <!-- Signal Card (hidden initially) -->
+  <div id="signalCard" style="display:none;" class="mb-5">
+    <div id="signalInner" style="border-radius:20px;padding:22px;position:relative;overflow:hidden;">
+
+      <!-- Top row: direction + share -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div id="dirIcon" style="width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;"></div>
+          <div>
+            <div id="dirText" style="font-size:36px;font-weight:900;letter-spacing:-1px;line-height:1;"></div>
+            <div id="pairDisplay" style="font-size:13px;color:#94a3b8;margin-top:3px;font-weight:500;"></div>
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <button class="btn-share" id="shareBtn" onclick="shareSignal()" style="padding:8px 14px;font-size:12px;font-weight:600;">
+            ↗ Поделиться
+          </button>
+          <div id="shareToast" style="display:none;font-size:11px;color:#00e676;font-weight:600;">Скопировано!</div>
+        </div>
+      </div>
+
+      <!-- Accuracy -->
+      <div class="flex items-center justify-between mb-2">
+        <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:0.5px;">ТОЧНОСТЬ СТРАТЕГИИ</div>
+        <div id="accuracyVal" style="font-size:14px;font-weight:700;color:#e2e8f0;"></div>
+      </div>
+      <div class="progress-bar mb-4">
+        <div id="accuracyBar" class="progress-fill" style="background:linear-gradient(90deg,#0078ff,#00b0ff);"></div>
+      </div>
+
+      <!-- Separator -->
+      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-bottom:16px;"></div>
+
+      <!-- Timer section -->
+      <div class="flex items-center gap-4">
+        <!-- Circular timer -->
+        <div style="position:relative;width:88px;height:88px;flex-shrink:0;">
+          <svg width="88" height="88" viewBox="0 0 88 88">
+            <circle class="circle-track" cx="44" cy="44" r="38"/>
+            <circle class="circle-fill circle-progress" id="circleTimer" cx="44" cy="44" r="38"
+              style="stroke-dasharray:238.76;stroke-dashoffset:0;"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <div id="timerDisplay" class="timer-text" style="font-size:18px;font-weight:800;color:#e2e8f0;font-family:monospace;letter-spacing:1px;"></div>
+            <div style="font-size:9px;color:#475569;font-weight:600;letter-spacing:0.5px;margin-top:1px;">ОСТАЛОСЬ</div>
+          </div>
+        </div>
+
+        <!-- Timer info -->
+        <div style="flex:1;">
+          <div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:4px;">ИСТЕЧЕНИЕ СИГНАЛА</div>
+          <div id="expiryTime" style="font-size:22px;font-weight:800;color:#e2e8f0;letter-spacing:0.5px;"></div>
+          <div id="expiryDate" style="font-size:12px;color:#475569;margin-top:2px;"></div>
+          <div class="progress-bar mt-3">
+            <div id="timerBar" class="progress-fill" style="width:100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Separator -->
+      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:16px;margin-bottom:16px;"></div>
+
+      <!-- Indicators -->
+      <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:0.5px;margin-bottom:10px;">ОСНОВАНИЕ СИГНАЛА</div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Сигнал сформирован на основе сочетания индикаторов:</div>
+      <div id="indicatorsList" class="flex flex-col gap-2"></div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div id="historySection" style="display:none;">
+    <div style="font-size:12px;font-weight:600;color:#334155;letter-spacing:0.8px;margin-bottom:10px;">ИСТОРИЯ СИГНАЛОВ</div>
+    <div id="historyList" class="flex flex-col gap-2"></div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="text-center mt-8" style="padding:16px;border-top:1px solid rgba(255,255,255,0.04);">
+    <div style="font-size:11px;color:#334155;line-height:1.6;">
+      ⚠️ <strong style="color:#475569;">Дисклеймер:</strong><br>
+      Торговля валютными парами несёт высокий финансовый риск.<br>
+      Сигналы не являются инвестиционными рекомендациями.
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ─── TELEGRAM HELPERS ─── */
+const TG = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+// Вибрация / тактильный отклик (только в Telegram)
+function haptic(type) {
+  try {
+    if (!TG) return;
+    if (type === 'impact')  TG.HapticFeedback.impactOccurred('medium');
+    if (type === 'success') TG.HapticFeedback.notificationOccurred('success');
+    if (type === 'error')   TG.HapticFeedback.notificationOccurred('error');
+    if (type === 'warning') TG.HapticFeedback.notificationOccurred('warning');
+  } catch(e) {}
+}
+
+/* ─── STATE ─── */
+let selectedExp = 5;
+let soundEnabled = true;
+let countdown = null;
+let totalSeconds = 0;
+let remainingSeconds = 0;
+let history = [];
+let currentSignal = null;
+const CIRCUMFERENCE = 2 * Math.PI * 38; // ≈ 238.76
+
+/* ─── INDICATOR COMBOS ─── */
+const indicatorSets = [
+  [
+    { name: 'RSI (14)', detail: 'Выход из зоны перепроданности + бычья дивергенция' },
+    { name: 'MACD Crossover', detail: 'Сигнальная линия пересекла MACD снизу вверх' },
+    { name: 'Bollinger Bands', detail: 'Цена оттолкнулась от нижней полосы, сжатие завершилось' },
+  ],
+  [
+    { name: 'EMA 50 / EMA 200', detail: 'Золотое пересечение подтверждено на M5' },
+    { name: 'Stochastic %K/%D', detail: '%K пересёк %D снизу, оба вышли из зоны <20' },
+    { name: 'Volume Profile', detail: 'Уровень VAH / POC совпадает с точкой входа' },
+    { name: 'RSI (14)', detail: 'RSI сформировал бычью дивергенцию на дне' },
+  ],
+  [
+    { name: 'Bollinger Bands Squeeze', detail: 'Полосы сузились до минимума — ожидается импульс' },
+    { name: 'ATR (14)', detail: 'ATR вырос, подтверждая начало движения' },
+    { name: 'MACD Histogram', detail: 'Гистограмма переключилась с отрицательных на положительные' },
+  ],
+  [
+    { name: 'Stochastic RSI', detail: 'StochRSI вышел из зоны перекупленности — разворот' },
+    { name: 'EMA 21', detail: 'Цена пробила EMA21 сверху вниз, ретест подтверждён' },
+    { name: 'Pivot Points', detail: 'Отбой от дневного Pivot S1 с поглощающей свечой' },
+    { name: 'CCI (20)', detail: 'CCI пересёк -100 снизу вверх — сигнал на покупку' },
+  ],
+  [
+    { name: 'Williams %R', detail: 'Вышел из перепроданности (-100 → -80) с импульсом' },
+    { name: 'Parabolic SAR', detail: 'Точки SAR переключились под ценой — тренд вверх' },
+    { name: 'VWAP', detail: 'Цена удерживается выше VWAP — институциональный спрос' },
+  ],
+  [
+    { name: 'RSI (14)', detail: 'RSI вышел из перекупленности (>70), медвежий разворот' },
+    { name: 'MACD', detail: 'MACD пересёк сигнальную линию сверху вниз' },
+    { name: 'EMA 50', detail: 'Цена отбилась от EMA50 как от сопротивления' },
+    { name: 'OBV', detail: 'On-Balance Volume снижается — продавцы доминируют' },
+  ],
+  [
+    { name: 'Ichimoku Cloud', detail: 'Цена ниже облака Кумо, TK-Cross медвежий' },
+    { name: 'Bollinger Bands', detail: 'Цена касается верхней полосы — зона перекупленности' },
+    { name: 'ADX (14)', detail: 'ADX > 25, -DI доминирует над +DI' },
+  ],
+  [
+    { name: 'Stochastic %K/%D', detail: '%K пересёк %D сверху в зоне перекупленности (>80)' },
+    { name: 'Fibonacci Retracement', detail: 'Отбой от уровня 61.8% Fib с подтверждением свечой' },
+    { name: 'RSI (14)', detail: 'Дивергенция медвежья: цена выше хая, RSI — ниже' },
+    { name: 'MACD Histogram', detail: 'Гистограмма снизила максимум — ослабление бычьего импульса' },
+  ],
+  [
+    { name: 'Supertrend (10,3)', detail: 'Индикатор сменил цвет с зелёного на красный' },
+    { name: 'EMA 9 / EMA 21', detail: 'Медвежье пересечение EMA9 ниже EMA21' },
+    { name: 'Volume', detail: 'Объём падения в 2.3× выше среднего 10-свечного' },
+  ],
+  [
+    { name: 'RSI (14)', detail: 'RSI на отметке 52, нейтральная зона с бычьим уклоном' },
+    { name: 'EMA 200', detail: 'Цена выше 200 EMA — глобальный тренд восходящий' },
+    { name: 'Candlestick Pattern', detail: 'Паттерн «Бычье поглощение» на M5 подтверждён' },
+    { name: 'Support/Resistance', detail: 'Пробой ключевого уровня сопротивления с закрытием выше' },
+  ],
+];
+
+/* ─── CLOCK ─── */
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  const days = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  document.getElementById('dateDisplay').textContent =
+    `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ─── TELEGRAM: приветствие + тема ─── */
+(function initTelegram() {
+  if (!TG) return;
+
+  // Показываем имя пользователя Telegram в шапке
+  const user = TG.initDataUnsafe && TG.initDataUnsafe.user;
+  if (user) {
+    const name = user.first_name || user.username || '';
+    if (name) {
+      const greeting = document.getElementById('tgGreeting');
+      if (greeting) {
+        greeting.textContent = `👋 ${name}`;
+        greeting.style.display = 'block';
+      }
+    }
+  }
+
+  // Адаптация под тёмную/светлую тему Telegram
+  // (наш бот всегда тёмный, но фиксируем цвет заголовка)
+  try {
+    TG.setHeaderColor('#05070f');
+    TG.setBackgroundColor('#05070f');
+  } catch(e) {}
+})();
+
+/* ─── EXPIRY BUTTONS ─── */
+function setExp(btn, val) {
+  document.querySelectorAll('.exp-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedExp = val;
+}
+
+/* ─── SOUND TOGGLE ─── */
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  const btn = document.getElementById('soundToggle');
+  document.getElementById('soundIcon').textContent = soundEnabled ? '🔔' : '🔕';
+  btn.classList.toggle('on', soundEnabled);
+}
+
+/* ─── SOUND ─── */
+function playSignalSound() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.12);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.25);
+      osc.start(ctx.currentTime + i * 0.12);
+      osc.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+  } catch(e) {}
+}
+
+/* ─── CALCULATE EXPIRY ─── */
+// Floor current time to the current minute, then add expiry duration.
+// 18:11:00 + 3 min → 18:14:00 ✓
+// 18:11:30 + 3 min → 18:14:00 ✓ (seconds are ignored)
+function calcExpiry(expMinutes, fromDate) {
+  const base = fromDate || new Date();
+  const floored = new Date(base);
+  floored.setSeconds(0, 0); // strip seconds & ms
+  floored.setMinutes(floored.getMinutes() + expMinutes);
+  return floored;
+}
+
+/* ─── RIPPLE ─── */
+function addRipple(e, btn) {
+  const rect = btn.getBoundingClientRect();
+  const r = document.createElement('span');
+  r.className = 'ripple-effect';
+  r.style.left = (e.clientX - rect.left - 30) + 'px';
+  r.style.top = (e.clientY - rect.top - 30) + 'px';
+  btn.appendChild(r);
+  setTimeout(() => r.remove(), 700);
+}
+
+/* ─── LOCK / UNLOCK CONTROLS ─── */
+function lockControls() {
+  // Disable pair select
+  const sel = document.getElementById('pairSelect');
+  sel.disabled = true;
+  sel.style.opacity = '0.45';
+  sel.style.cursor = 'not-allowed';
+  sel.style.pointerEvents = 'none';
+
+  // Disable expiry buttons
+  document.querySelectorAll('.exp-btn').forEach(b => {
+    b.disabled = true;
+    b.style.opacity = '0.45';
+    b.style.cursor = 'not-allowed';
+    b.style.pointerEvents = 'none';
+  });
+
+  // Swap main button to RESET mode
+  const btn = document.getElementById('genBtn');
+  btn.onclick = resetSignal;
+  btn.style.background = 'linear-gradient(135deg,#7f1d1d,#dc2626)';
+  btn.style.boxShadow = '0 4px 24px rgba(220,38,38,0.35)';
+  document.getElementById('btnText').textContent = '✕ Сбросить сигнал';
+}
+
+function unlockControls() {
+  // Re-enable pair select
+  const sel = document.getElementById('pairSelect');
+  sel.disabled = false;
+  sel.style.opacity = '';
+  sel.style.cursor = '';
+  sel.style.pointerEvents = '';
+
+  // Re-enable expiry buttons
+  document.querySelectorAll('.exp-btn').forEach(b => {
+    b.disabled = false;
+    b.style.opacity = '';
+    b.style.cursor = '';
+    b.style.pointerEvents = '';
+  });
+
+  // Restore main button to GENERATE mode
+  const btn = document.getElementById('genBtn');
+  btn.onclick = generateSignal;
+  btn.style.background = 'linear-gradient(135deg,#0078ff,#00b0ff)';
+  btn.style.boxShadow = '0 4px 24px rgba(0,176,255,0.3)';
+  document.getElementById('btnText').textContent = '⚡ Получить сигнал';
+}
+
+/* ─── RESET SIGNAL ─── */
+function resetSignal(e) {
+  if (e) { const btn = document.getElementById('genBtn'); addRipple(e, btn); }
+  haptic('warning');
+
+  // Stop countdown
+  if (countdown) { clearInterval(countdown); countdown = null; }
+
+  // Hide signal card with animation
+  const card = document.getElementById('signalCard');
+  card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+  card.style.opacity = '0';
+  card.style.transform = 'scale(0.95)';
+  setTimeout(() => { card.style.display = 'none'; }, 320);
+
+  currentSignal = null;
+  unlockControls();
+}
+
+/* ─── WEEKEND BLOCK ─── */
+function showWeekendMessage() {
+  haptic('error');
+  const card = document.getElementById('signalCard');
+  const inner = document.getElementById('signalInner');
+
+  inner.className = '';
+  inner.style.cssText = `
+    border-radius:20px; padding:32px 22px; text-align:center;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+  `;
+
+  inner.innerHTML = `
+    <div style="font-size:52px;margin-bottom:16px;">🌙</div>
+    <div style="font-size:20px;font-weight:800;color:#e2e8f0;margin-bottom:10px;">Рынки закрыты</div>
+    <div style="font-size:14px;color:#64748b;line-height:1.7;margin-bottom:20px;">
+      Сегодня выходной день.<br>
+      Форекс-рынки работают<br>
+      <span style="color:#94a3b8;font-weight:600;">с понедельника по пятницу</span>.
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 18px;">
+      <div style="width:7px;height:7px;background:#ff1744;border-radius:50%;box-shadow:0 0 6px #ff1744;"></div>
+      <span style="font-size:12px;font-weight:600;color:#ff1744;letter-spacing:0.6px;">OFFLINE</span>
+    </div>
+  `;
+
+  card.style.display = 'block';
+  card.style.opacity = '0';
+  card.style.transform = 'scale(0.94)';
+  card.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    card.style.opacity = '1';
+    card.style.transform = 'scale(1)';
+  }));
+
+  setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
+}
+
+/* ─── MAIN GENERATE FUNCTION ─── */
+function generateSignal(e) {
+  const btn = document.getElementById('genBtn');
+  addRipple(e, btn);
+  haptic('impact'); // тактильный отклик при нажатии
+
+  // Show loader
+  btn.disabled = true;
+  document.getElementById('btnText').style.display = 'none';
+  document.getElementById('btnLoader').style.display = 'flex';
+
+  setTimeout(() => {
+    btn.disabled = false;
+    document.getElementById('btnText').style.display = 'inline';
+    document.getElementById('btnLoader').style.display = 'none';
+
+    const day = new Date().getDay(); // 0 = Sun, 6 = Sat
+    if (day === 0 || day === 6) {
+      showWeekendMessage();
+      return;
+    }
+
+    renderSignal();
+    lockControls();
+  }, 1200);
+}
+
+function renderSignal() {
+  const pair = document.getElementById('pairSelect').value;
+  const exp = selectedExp;
+  const now = new Date(); // capture exact moment of signal generation
+
+  // Random direction (52% CALL for realism)
+  const isCall = Math.random() < 0.52;
+  const direction = isCall ? 'CALL' : 'PUT';
+
+  // Random accuracy 65–90
+  const accuracy = Math.floor(Math.random() * 26) + 65;
+
+  // Expiry = floor(now to minute) + exp minutes
+  const expiry = calcExpiry(exp, now);
+  const expiryH = String(expiry.getHours()).padStart(2,'0');
+  const expiryM = String(expiry.getMinutes()).padStart(2,'0');
+  const expiryStr = `${expiryH}:${expiryM}`;
+
+  // Seconds until expiry (from now)
+  const secsLeft = Math.round((expiry.getTime() - now.getTime()) / 1000);
+
+  // Random indicators
+  const indSet = indicatorSets[Math.floor(Math.random() * indicatorSets.length)];
+
+  currentSignal = { pair, direction, accuracy, expiryStr, exp, isCall };
+
+  // Render card
+  const card = document.getElementById('signalCard');
+  const inner = document.getElementById('signalInner');
+
+  // Direction styling
+  const color = isCall ? '#00e676' : '#ff1744';
+  const bgClass = isCall ? 'signal-call' : 'signal-put';
+  inner.className = bgClass;
+  inner.style.borderRadius = '20px';
+  inner.style.padding = '22px';
+  inner.style.position = 'relative';
+  inner.style.overflow = 'hidden';
+
+  document.getElementById('dirIcon').style.background = isCall
+    ? 'rgba(0,230,118,0.15)' : 'rgba(255,23,68,0.15)';
+  document.getElementById('dirIcon').textContent = isCall ? '▲' : '▼';
+  document.getElementById('dirText').style.color = color;
+  document.getElementById('dirText').textContent = direction;
+  document.getElementById('pairDisplay').textContent = `${pair} • ${exp} мин`;
+
+  document.getElementById('accuracyVal').textContent = `${accuracy}%`;
+  document.getElementById('accuracyBar').style.width = `${accuracy}%`;
+  document.getElementById('accuracyBar').style.background = accuracy >= 80
+    ? 'linear-gradient(90deg,#00c853,#00e676)'
+    : accuracy >= 72
+    ? 'linear-gradient(90deg,#0078ff,#00b0ff)'
+    : 'linear-gradient(90deg,#f59e0b,#ffd740)';
+
+  document.getElementById('expiryTime').textContent = `До ${expiryStr}`;
+  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  const days = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  document.getElementById('expiryDate').textContent =
+    `${days[expiry.getDay()]}, ${expiry.getDate()} ${months[expiry.getMonth()]}`;
+
+  // Circle timer color
+  document.getElementById('circleTimer').style.stroke = color;
+
+  // Render indicators
+  const indList = document.getElementById('indicatorsList');
+  indList.innerHTML = '';
+  indSet.forEach(ind => {
+    const el = document.createElement('div');
+    el.className = 'ind-pill fade-in';
+    el.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:8px;">
+        <div style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;margin-top:5px;"></div>
+        <div>
+          <span style="font-size:12px;font-weight:700;color:#cbd5e1;">${ind.name}</span>
+          <span style="font-size:12px;color:#64748b;"> — ${ind.detail}</span>
+        </div>
+      </div>`;
+    indList.appendChild(el);
+  });
+
+  // Show card with animation
+  card.style.display = 'block';
+  card.style.opacity = '0';
+  card.style.transform = 'scale(0.94)';
+  card.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      card.style.opacity = '1';
+      card.style.transform = 'scale(1)';
+    });
+  });
+
+  // Start countdown
+  startCountdown(secsLeft, exp * 60, color);
+
+  // Sound
+  playSignalSound();
+  haptic('success'); // тактильный сигнал об успехе
+
+  // Add to history
+  addToHistory({ pair, direction, accuracy, expiryStr, exp, isCall, time: now });
+
+  // Scroll to card
+  setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
+}
+
+/* ─── COUNTDOWN TIMER ─── */
+function startCountdown(secs, total, accentColor) {
+  if (countdown) clearInterval(countdown);
+  totalSeconds = total;
+  remainingSeconds = secs;
+
+  function tick() {
+    if (remainingSeconds <= 0) {
+      clearInterval(countdown);
+      document.getElementById('timerDisplay').textContent = '00:00';
+      document.getElementById('circleTimer').style.strokeDashoffset = CIRCUMFERENCE;
+      document.getElementById('timerBar').style.width = '0%';
+      // Сигнал истёк — автоматически разблокируем всё
+      unlockControls();
+      const card = document.getElementById('signalCard');
+      card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      setTimeout(() => { card.style.display = 'none'; currentSignal = null; }, 650);
+      return;
+    }
+
+    const m = Math.floor(remainingSeconds / 60);
+    const s = remainingSeconds % 60;
+    document.getElementById('timerDisplay').textContent =
+      `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+    // Circular progress
+    const pct = remainingSeconds / totalSeconds;
+    const offset = CIRCUMFERENCE * (1 - pct);
+    document.getElementById('circleTimer').style.strokeDashoffset = offset;
+
+    // Linear bar
+    document.getElementById('timerBar').style.width = (pct * 100) + '%';
+
+    // Urgency — last 20%
+    const isUrgent = pct < 0.2;
+    document.getElementById('circleTimer').style.stroke = isUrgent ? '#ff1744' : accentColor;
+    document.getElementById('timerDisplay').style.color = isUrgent ? '#ff1744' : '#e2e8f0';
+    document.getElementById('timerBar').style.background = isUrgent
+      ? 'linear-gradient(90deg,#ff1744,#ff6b6b)'
+      : accentColor === '#00e676'
+      ? 'linear-gradient(90deg,#00c853,#00e676)'
+      : 'linear-gradient(90deg,#ff1744,#ff6b6b)';
+
+    remainingSeconds--;
+  }
+
+  tick();
+  countdown = setInterval(tick, 1000);
+}
+
+/* ─── HISTORY ─── */
+function addToHistory(sig) {
+  history.unshift(sig);
+  if (history.length > 7) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const sec = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  if (!history.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = '';
+  history.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'hist-item fade-in';
+    el.style.padding = '10px 14px';
+    el.style.animationDelay = `${i * 0.05}s`;
+    const col = s.isCall ? '#00e676' : '#ff1744';
+    const arrow = s.isCall ? '▲' : '▼';
+    const h = String(s.time.getHours()).padStart(2,'0');
+    const m = String(s.time.getMinutes()).padStart(2,'0');
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:14px;font-weight:800;color:${col};">${arrow} ${s.direction}</span>
+          <span style="font-size:13px;font-weight:600;color:#94a3b8;">${s.pair}</span>
+          <span style="font-size:11px;color:#475569;background:rgba(255,255,255,0.04);padding:2px 8px;border-radius:6px;">${s.exp} мин</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;font-weight:700;color:#64748b;">${s.accuracy}%</span>
+          <span style="font-size:11px;color:#334155;font-family:monospace;">${h}:${m}</span>
+        </div>
+      </div>`;
+    list.appendChild(el);
+  });
+}
+
+/* ─── SHARE ─── */
+function shareSignal() {
+  if (!currentSignal) return;
+  const { pair, direction, accuracy, expiryStr, exp } = currentSignal;
+  const text = `${pair} • ${direction} • До ${expiryStr} • Точность ${accuracy}% • Экспирация ${exp} мин`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(showShareToast);
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showShareToast();
+  }
+}
+
+function showShareToast() {
+  const toast = document.getElementById('shareToast');
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+</script>
+</body>
+</html>
